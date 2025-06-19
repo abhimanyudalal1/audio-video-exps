@@ -1,68 +1,68 @@
-import sounddevice as sd
-import librosa
-import numpy as np
-import scipy.io.wavfile as wavfile
-import os
-# Parameters
-DURATION = 3  # seconds
-SAMPLERATE = 22050  # Hz
-FILENAME = "speech_recording.wav"
+# import sounddevice as sd
+# import librosa
+# import numpy as np
+# import scipy.io.wavfile as wavfile
+# import os
+# # Parameters
+# DURATION = 3  # seconds
+# SAMPLERATE = 22050  # Hz
+# FILENAME = "speech_recording.wav"
 
-# Step 1: Record audio from mic
-print(f"Recording for {DURATION} seconds...")
-audio = sd.rec(int(DURATION * SAMPLERATE), samplerate=SAMPLERATE, channels=1)
-sd.wait()
-print("Recording complete.")
+# # Step 1: Record audio from mic
+# print(f"Recording for {DURATION} seconds...")
+# audio = sd.rec(int(DURATION * SAMPLERATE), samplerate=SAMPLERATE, channels=1)
+# sd.wait()
+# print("Recording complete.")
 
-# Convert to 1D and save
-audio = audio.flatten()
-wavfile.write(FILENAME, SAMPLERATE, (audio * 32767).astype(np.int16))
+# # Convert to 1D and save
+# audio = audio.flatten()
+# wavfile.write(FILENAME, SAMPLERATE, (audio * 32767).astype(np.int16))
 
-# Step 2: Load audio with librosa
-y, sr = librosa.load(FILENAME, sr=SAMPLERATE)
+# # Step 2: Load audio with librosa
+# y, sr = librosa.load(FILENAME, sr=SAMPLERATE)
 
-# Step 3: Extract features
-features = {}
+# # Step 3: Extract features
+# features = {}
 
-# Pitch (estimated using librosa.yin)
-f0 = librosa.yin(y, fmin=50, fmax=300)
-features['pitch_mean'] = np.mean(f0)
-features['pitch_std'] = np.std(f0)
+# # Pitch (estimated using librosa.yin)
+# f0 = librosa.yin(y, fmin=50, fmax=300)
+# features['pitch_mean'] = np.mean(f0)
+# features['pitch_std'] = np.std(f0)
 
-# Energy (RMS)
-rms = librosa.feature.rms(y=y)[0]
-features['rms_mean'] = np.mean(rms)
+# # Energy (RMS)
+# rms = librosa.feature.rms(y=y)[0]
+# features['rms_mean'] = np.mean(rms)
 
-# Tempo (BPM)
-tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-features['tempo'] = tempo
+# # Tempo (BPM)
+# tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+# features['tempo'] = tempo
 
-# Zero-Crossing Rate
-zcr = librosa.feature.zero_crossing_rate(y)[0]
-features['zcr_mean'] = np.mean(zcr)
+# # Zero-Crossing Rate
+# zcr = librosa.feature.zero_crossing_rate(y)[0]
+# features['zcr_mean'] = np.mean(zcr)
 
-# Spectral features
-features['spectral_centroid'] = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
-features['spectral_bandwidth'] = np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr))
-features['spectral_rolloff'] = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
+# # Spectral features
+# features['spectral_centroid'] = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
+# features['spectral_bandwidth'] = np.mean(librosa.feature.spectral_bandwidth(y=y, sr=sr))
+# features['spectral_rolloff'] = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
 
-# MFCCs
-mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-for i in range(mfccs.shape[0]):
-    features[f'mfcc_{i+1}'] = np.mean(mfccs[i])
+# # MFCCs
+# mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+# for i in range(mfccs.shape[0]):
+#     features[f'mfcc_{i+1}'] = np.mean(mfccs[i])
 
-# Chroma
-chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-features['chroma_mean'] = np.mean(chroma)
+# # Chroma
+# chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+# features['chroma_mean'] = np.mean(chroma)
 
-# Output features
-print("\n🔍 Extracted Speech Features:")
-for k, v in features.items():
+# # Output features
+# print("\n🔍 Extracted Speech Features:")
+# for k, v in features.items():
 
-    print(f"{k}: {float(v):.3f}" if np.isscalar(v) else f"{k}: {v}")
+#     print(f"{k}: {float(v):.3f}" if np.isscalar(v) else f"{k}: {v}")
 
-# Optional: delete file
-os.remove(FILENAME)
+# # Optional: delete file
+# os.remove(FILENAME)
 
 
 
@@ -90,7 +90,51 @@ def extract_features(audio, sr):
     features["tempo"] = librosa.beat.tempo(y=audio, sr=sr)[0]
     features["mfccs"] = np.mean(librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=13), axis=1)
 
+        # Additional features for Clarity
+    features["spectral_centroid"] = np.mean(librosa.feature.spectral_centroid(y=audio, sr=sr))
+    features["spectral_bandwidth"] = np.mean(librosa.feature.spectral_bandwidth(y=audio, sr=sr))
+    features["chroma_mean"] = np.mean(librosa.feature.chroma_stft(y=audio, sr=sr))
+
     return features
+def analyze_speech(features):
+    analysis = []
+
+    # Pitch
+    if features["pitch_mean"] < 100:
+        analysis.append("⚠️ Voice may sound dull or low-pitched.")
+    elif features["pitch_mean"] > 250:
+        analysis.append("⚠️ Voice might be too high-pitched.")
+    else:
+        analysis.append("✅ Pitch is within a natural speaking range.")
+
+    if features["pitch_std"] < 10:
+        analysis.append("⚠️ Try adding more pitch variation for expressiveness.")
+    else:
+        analysis.append("✅ Good pitch variation detected.")
+
+    # Loudness / Energy
+    if features["rms_mean"] < 0.02:
+        analysis.append("⚠️ Speaking too softly. Increase volume.")
+    elif features["rms_mean"] > 0.1:
+        analysis.append("⚠️ Voice might be too loud or harsh.")
+    else:
+        analysis.append("✅ Volume level seems appropriate.")
+
+    # Tempo (words per minute approximation)
+    if features["tempo"] < 90:
+        analysis.append("⚠️ You may be speaking too slowly.")
+    elif features["tempo"] > 160:
+        analysis.append("⚠️ You may be speaking too fast.")
+    else:
+        analysis.append("✅ Speaking pace looks natural.")
+
+    # Optional: ZCR can indicate articulation or sharpness
+    if features["zcr_mean"] > 0.1:
+        analysis.append("⚠️ Speech may be sharp or hissy (check articulation).")
+    else:
+        analysis.append("✅ Speech articulation is within a normal range.")
+
+    return analysis
 
 duration = 3  # seconds per chunk
 print("🎤 Listening... (Ctrl+C to stop)")
@@ -107,6 +151,9 @@ try:
         print(f"🎧 PITCH: {features['pitch_mean']:.1f} Hz | ENERGY: {features['rms_mean']:.3f} | TEMPO: {features['tempo']:.1f} BPM")
         print(f"ZCR: {features['zcr_mean']:.3f}")
         print("MFCCs:", ", ".join([f"{v:.2f}" for v in features["mfccs"][:5]]), "...")
+        print("Analysis:")
+        for a in analysis:
+            print("•", a)
         print("------")
         
         time.sleep(0.2)  # Optional: slight buffer
