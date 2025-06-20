@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Speech Feedback App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h2 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    
+    p {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    
+    .button-container {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 0 10px;
+      transition: background-color 0.3s;
+    }
+    
+    #startBtn {
+      background-color: #4CAF50;
+      color: white;
+    }
+    
+    #startBtn:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+    
+    #stopBtn {
+      background-color: #f44336;
+      color: white;
+    }
+    
+    #stopBtn:hover:not(:disabled) {
+      background-color: #da190b;
+    }
+    
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    #status {
+      text-align: center;
+      padding: 15px;
+      margin: 20px 0;
+      background-color: #e3f2fd;
+      border-radius: 5px;
+      border-left: 4px solid #2196F3;
+      font-weight: bold;
+    }
+    
+    #feedback {
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 20px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .recording {
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { background-color: #e3f2fd; }
+      50% { background-color: #ffebee; }
+      100% { background-color: #e3f2fd; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🎤 Speech Feedback App</h2>
+    <p>Click "Start Recording" to begin a 2-minute speech recording session. Get instant feedback on your speaking performance!</p>
+    
+    <div class="button-container">
+      <button id="startBtn">Start Recording</button>
+      <button id="stopBtn" disabled>Stop Recording</button>
+    </div>
+    
+    <div id="status">Ready to record</div>
+    <div id="feedback"></div>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const status = document.getElementById('status');
+    const feedback = document.getElementById('feedback');
+
+    let mediaRecorder;
+    let socket;
+    let stream;
+    let recordingTimeout;
+    let isRecording = false;
+    let audioChunks = [];
+
+    startBtn.onclick = async () => {
+      try {
+        status.textContent = "Requesting microphone access...";
+        status.className = "";
+        feedback.textContent = "";
+        audioChunks = [];
+        
+        // Get user media first
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            sampleRate: 16000
+          } 
+        });
+        
+        status.textContent = "Microphone access granted. Setting up recording...";
+        
+        // Set up MediaRecorder first
+        let options = {};
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options.mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options.mimeType = 'audio/webm';
+        } else {
+          console.warn('Using default audio format');
+        }
+        
+        mediaRecorder = new MediaRecorder(stream, options);
+        
+        // Store chunks locally first
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+            console.log('Audio chunk recorded:', event.data.size, 'bytes', 'Total chunks:', audioChunks.length);
+          }
+        };
+
+        // mediaRecorder.onstop = () => {
+        //   console.log('Recording stopped. Total chunks:', audioChunks.length);
+        //   isRecording = false;
+        //   status.className = "";
+        //   status.textContent = "Recording finished. Uploading...";
+          
+        //   // Now send all the audio data
+        //   sendAudioData();
+        // };
+        mediaRecorder.onstop = async () => {
+          
+          console.log('Recording stopped. Total chunks:', audioChunks.length);
+          isRecording = false;
+          status.className = "";
+          status.textContent = "Recording finished. Uploading...";
+
+            // Combine all chunks into one Blob
+
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+            // Convert Blob to ArrayBuffer (raw bytes)
+          const arrayBuffer = await audioBlob.arrayBuffer();
+
+          
+
+  // Send the bytes over WebSocket
+          if (socket && socket.readyState === WebSocket.OPEN) {
+  
+            console.log("Sending audio buffer of size:", arrayBuffer.byteLength);
+            socket.send(arrayBuffer);  // ✅ This sends raw bytes!
+            socket.send("end");        // Optional: send a delimiter or message to indicate end of transmission
+          } else {
+            console.error("WebSocket is not open.");
+          }
+
+           status.textContent = "Analysis complete!";
+         };
+
+
+// Recorder.onerror = (event) => {
+//           console.error('MediaRecorder error:', event.error);
+//           status.textContent = "Recording error: " + event.error;
+//           status.className = "";
+//           cleanup();
+//         };
+   mediaRecorder.onerror = (event) => {
+             console.error('MediaRecorder error:', event.error);
+             status.textContent = "Recording error: " + event.error;
+             status.className = "";
+             cleanup();
+           };
+
+        // Start recording immediately
+        status.textContent = "🔴 Recording... Speak now!"
+        status.className = "recording";
+        isRecording = true;
+        mediaRecorder.start(1000); // Collect data every second
+        
+        // Update UI
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        recordingTimeout = setTimeout(() => {
+          stopRecording();
+        }, 12000);//12 seconds
+
+      } catch (error) {
+        console.error('Error accessing microphone:', error);
+        status.className = "";
+        if (error.name === 'NotAllowedError') {
+          status.textContent = "❌ Microphone access denied. Please allow microphone access and try again.";
+        } else if (error.name === 'NotFoundError') {
+          status.textContent = "❌ No microphone found. Please connect a microphone and try again.";
+        } else {
+          status.textContent = "❌ Error accessing microphone: " + error.message;
+        }
+        cleanup();
+      }
+    };
+
+    async function sendAudioData() {
+      if (audioChunks.length === 0) {
+        status.textContent = "❌ No audio recorded. Please try again.";
+        cleanup();
+        return;
+      }
+
+      try {
+        status.textContent = "🔄 Connecting to server...";
+
+        // Combine all chunks into a single valid WebM Blob
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // Open WebSocket connection
+  -
+
+      } catch (error) {
+        console.error('Error sending audio data:', error);
+        status.textContent = "❌ Error uploading audio: " + error.message;
+        cleanup();
+      }
+    }
+
+    stopBtn.onclick = () => {
+      stopRecording();
+    };
+
+    function stopRecording() {
+      console.log('Stopping recording...');
+      
+      if (recordingTimeout) {
+        clearTimeout(recordingTimeout);
+        recordingTimeout = null;
+      }
+      
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      
+      resetUI();
+    }
+
+    function cleanup() {
+      isRecording = false;
+      audioChunks = [];
+      
+      if (recordingTimeout) {
+        clearTimeout(recordingTimeout);
+        recordingTimeout = null;
+      }
+      
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop();
+          console.log('Stopped track:', track.kind);
+        });
+        stream = null;
+      }
+      
+      // Don't close socket here if it's still processing
+      if (socket && socket.readyState === WebSocket.OPEN && 
+        !status.textContent.includes("Processing") && 
+        !status.textContent.includes("Uploading")) {
+        console.log('Closing WebSocket from cleanup()');
+        socket.close();
+        socket = null;
+    }
+      
+      resetUI();
+    }
+
+    function resetUI() {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      status.className = "";
+    }
+
+    // Handle page unload
+    window.addEventListener('beforeunload', () => {
+      cleanup();
+    });
+  </script>
+</body>
+</html>
