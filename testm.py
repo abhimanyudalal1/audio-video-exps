@@ -100,8 +100,6 @@ def send_to_gemini(all_results):
     print("\n=== Sending the following prompt to Gemini ===\n", prompt)
 
     # Here you can implement Gemini API call
-    # For now, we'll just save it to a file   
-    #response = genai.generate_content(model="gemini-1.5-flash", contents=prompt)
 
     response = client.models.generate_content(
         model="gemini-1.5-flash", 
