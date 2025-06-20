@@ -15,7 +15,7 @@ import time
 # Or more directly:
 import google.genai as genai
 
-client = genai.Client(api_key="GEMINI_API_KEY")
+client = genai.Client(api_key="mykey")
 
 
 sr = 22050  # Sampling rate
@@ -47,16 +47,16 @@ def analyze_speech(features):
     alerts = []
 
     # 🎵 Pitch
-    if features["pitch_mean"] < 100:
+    if features["pitch_mean"] < 600:
         alerts.append("📢 Your pitch is quite low. Try speaking with more energy.")
-    elif features["pitch_mean"] > 250:
+    elif features["pitch_mean"] > 1000:
         alerts.append("📢 Your pitch is unusually high. Consider toning it down.")
 
     if features["pitch_std"] < 10:
         alerts.append("🎙️ Your voice lacks variation. Try adding some pitch dynamics.")
 
     # 🔊 Loudness / Energy
-    if features["rms_mean"] < 0.02:
+    if features["rms_mean"] < 0.03:
         alerts.append("🔈 You're speaking too softly. Increase your volume.")
     elif features["rms_mean"] > 0.1:
         alerts.append("🔊 Your volume is too high. Lower it slightly for comfort.")
@@ -90,19 +90,16 @@ def send_to_gemini(all_results):
         prompt += f"Chunk {i}: pitch_mean={result['pitch_mean']:.2f}, rms_mean={result['rms_mean']:.3f}, zcr_mean={result['zcr_mean']:.3f}, " \
                   f"tempo={result['tempo']:.1f}, spectral_centroid={result['spectral_centroid']:.1f}, spectral_bandwidth={result['spectral_bandwidth']:.1f}, chroma_mean={result['chroma_mean']:.3f}\n"
 
-    prompt += (
-        "\nPlease review this data as a public speaking coach and give overall feedback. "
-        "Make it very simple and human-readable — no technical jargon or metric names. "
-        "Just give clear, actionable advice about how the person can speak more confidently, clearly, and consistently."
-    )
+    prompt += ('You are a highly experienced public speaking coach. I need your expert analysis of a speech, based on the vocal characteristics I provide. Please avoid technical jargon and focus on actionable advice.\n\nFor each speech, I will give you values for:\n\n* **Vocal Pitch (Average and Variation):** How high or low the speaker\'s voice generally is, and how much it changes.\n* **Vocal Loudness (Overall):** The general volume and power of the speaker\'s voice.\n* **Speech Clarity (Pronunciation and Crispness):** How clear and distinct the speaker\'s words are.\n* **Speaking Pace (Speed):** How fast or slow the speaker talks.\n* **Vocal Resonance (Warmth and Fullness):** The richness and depth of the speaker\'s voice.\n\nBased on these, please provide:\n\n1.  **Strengths:** What did the speaker do well vocally?\n2.  **Areas for Improvement:** Where could their voice be more effective?\n3.  **Tips for Improvement:** Specific, easy-to-understand actions the speaker can take to enhance their vocal delivery.\n\nYour feedback should be concise, direct, and practical.' )
 
     
-    print("\n=== Sending the following prompt to Gemini ===\n", prompt)
+    print("\n=== Sending the following prompt to Gemini ===\n" )
+    #prompt
 
     # Here you can implement Gemini API call
 
     response = client.models.generate_content(
-        model="gemini-1.5-flash", 
+        model="gemini-2.0-flash", 
         contents=prompt
     )
     print("\n=== Gemini's Analysis ===\n", response.text)
